@@ -14,8 +14,9 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.Headers;
 import java.io.OutputStream;
-import com.example.User;
-import com.example.DBUtil;
+
+import com.example.UserRegist;
+import com.example.HttpResponseJson;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,7 +26,8 @@ public class BackEndMainServer {
     public static void main(String[] args) {
           try {
             HttpServer server = HttpServer.create(new InetSocketAddress(3000), 0);
-            server.createContext("/Backend-1/api/auth/register", new UserRegist());
+            server.createContext("/Backend-1/api/auth/register", new UserRegistHandler());
+            server.createContext("/Backend-1/api/auth/login", new UserloginHandler());
             server.start(); 
             Thread.currentThread().join();
         } catch (IOException e) {
@@ -37,7 +39,7 @@ public class BackEndMainServer {
     }
     
 }
-class UserRegist implements HttpHandler {
+class UserRegistHandler implements HttpHandler {
     @Override 
     public void handle(HttpExchange httpExchange) throws IOException { 
         String requestMethod = httpExchange.getRequestMethod();
@@ -51,22 +53,58 @@ class UserRegist implements HttpHandler {
         try {
             // 读取请求体（如果需要处理注册数据）
             InputStream requestBody = httpExchange.getRequestBody();
-            // 这里可以解析请求体中的用户注册数据
-            
-            // 准备响应数据
-            String responseJson = "{\"code\":200,\"message\":\"success\",\"data\":null}";
-            byte[] responseBytes = responseJson.getBytes(StandardCharsets.UTF_8);
-            
-            // 设置响应头
-            Headers responseHeaders = httpExchange.getResponseHeaders();
-            responseHeaders.set("Content-Type", "application/json;charset=utf-8");
-            
-            // 发送响应头，第二个参数是响应体的长度
-            httpExchange.sendResponseHeaders(200, responseBytes.length);
-            
+            String requestBodyString = new String(requestBody.readAllBytes(), StandardCharsets.UTF_8);
+            HttpResponseJson response = UserRegist.handle(requestBodyString);
+            httpExchange.sendResponseHeaders(response.statusCode, response.responseBody.length());
             // 写入响应体
             try (OutputStream os = httpExchange.getResponseBody()) {
-                os.write(responseBytes);
+                os.write(response.responseBody.getBytes(StandardCharsets.UTF_8));
+                os.flush(); // 确保数据被刷新
+            }
+
+            
+        } catch (Exception e) {
+
+            sendErrorResponse(httpExchange, 500, "Internal Server Error");
+        }
+       
+    }
+    private void sendErrorResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
+        String errorJson = String.format("{\"code\":%d,\"message\":\"%s\",\"data\":null}", 
+                                       statusCode, message);
+        byte[] errorBytes = errorJson.getBytes(StandardCharsets.UTF_8);
+        
+        Headers headers = exchange.getResponseHeaders();
+        headers.set("Content-Type", "application/json;charset=utf-8");
+        
+        exchange.sendResponseHeaders(statusCode, errorBytes.length);
+        
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(errorBytes);
+            os.flush();
+        }
+    }
+        
+}
+class UserloginHandler implements HttpHandler {
+    @Override 
+    public void handle(HttpExchange httpExchange) throws IOException { 
+        String requestMethod = httpExchange.getRequestMethod();
+        // 处理非POST请求
+        if (!"POST".equals(requestMethod)) {
+            sendErrorResponse(httpExchange, 405, "Method Not Allowed");
+            return;
+        }
+        
+        try {
+            // 读取请求体（如果需要处理注册数据）
+            InputStream requestBody = httpExchange.getRequestBody();
+            String requestBodyString = new String(requestBody.readAllBytes(), StandardCharsets.UTF_8);
+            HttpResponseJson response = Userlogin.handle(requestBodyString);
+            httpExchange.sendResponseHeaders(response.statusCode, response.responseBody.length());
+            // 写入响应体
+            try (OutputStream os = httpExchange.getResponseBody()) {
+                os.write(response.responseBody.getBytes(StandardCharsets.UTF_8));
                 os.flush(); // 确保数据被刷新
             }
 
